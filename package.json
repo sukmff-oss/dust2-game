@@ -1,0 +1,22 @@
+{
+  "name": "dust2-fps-multiplayer",
+  "version": "0.2.0",
+  "description": "Mini CS2 — Deathmatch with bots (multiplayer prototype)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "socket.io": "^4.7.5",
+    "socket.io-client": "^4.8.3"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "localtunnel": "^2.0.2"
+  }
+}

@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DUST II — Mini CS2 (Multiplayer)</title>
+  <link rel="stylesheet" href="style.css" />
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+      "socket.io-client": "https://cdn.socket.io/4.7.5/socket.io.esm.min.js"
+    }
+  }
+  </script>
+</head>
+<body>
+  <!-- ==================== HUD (in-game) ==================== -->
+  <div id="hud">
+    <!-- 連線狀態 -->
+    <div id="conn-status" class="conn-status disconnected">● 連線中...</div>
+
+    <!-- 靜音按鈕 (左上,連線狀態旁邊) -->
+    <button id="mute-btn" class="mute-btn" title="靜音切換 (M)">🔊</button>
+
+    <!-- FPS 顯示 (左上角,debug 用) -->
+    <div id="fps" class="fps-counter" title="幀率">0 FPS</div>
+
+    <!-- 地圖名稱 + Session 分數 (PK 模式頂部中央) -->
+    <div id="map-info" class="map-info" style="display:none">
+      <div class="map-name" id="map-name">Dusty Duel</div>
+      <div class="map-subtitle" id="map-subtitle">沙漠黃昏</div>
+      <div class="map-cycle">
+        <span class="mc-row">地圖 <span id="map-total">1</span></span>
+        <span class="mc-sep">·</span>
+        <span class="mc-row">第 <span id="map-current">1</span>/5 場</span>
+      </div>
+    </div>
+
+    <!-- 切換地圖橫幅 -->
+    <div id="map-change-banner" class="map-banner" style="display:none"></div>
+    <div id="map-winner-banner" class="map-winner" style="display:none"></div>
+
+    <!-- 換彈進度條 (CS2 風格 — 螢幕中央下方) -->
+    <div id="reload-bar" class="reload-bar" style="display:none">
+      <div class="reload-bar-fill"></div>
+      <div class="reload-bar-text">RELOADING</div>
+    </div>
+
+    <!-- 換地圖按鈕 (右上角,PK 模式專用) -->
+    <button id="btn-change-map" class="btn-change-map" style="display:none" title="切換地圖 (Tab)">🗺️ 換地圖</button>
+
+    <!-- 換地圖面板 (按下按鈕彈出) -->
+    <div id="map-change-panel" class="map-change-panel" style="display:none">
+      <div class="mcp-title">🗺️ 切換地圖</div>
+      <div class="mcp-grid" id="mcp-grid">
+        <!-- JS 動態填入 5 張地圖 + 隨機 -->
+      </div>
+      <button id="mcp-close" class="mcp-close">取消 (Esc)</button>
+    </div>
+
+    <!-- =========================================================== -->
+    <!-- 手機版 UI (auto-detect 觸控裝置後才顯示)                       -->
+    <!-- =========================================================== -->
+    <div id="mobile-controls" class="mobile-controls">
+      <!-- 視角拖曳區 (右半螢幕,除了按鈕區) -->
+      <div id="mobile-look-zone" class="mobile-look-zone"></div>
+
+      <!-- 虛擬搖桿 (左下) -->
+      <div id="mobile-stick" class="mobile-stick">
+        <div class="mobile-stick-base">
+          <div id="mobile-stick-knob" class="mobile-stick-knob"></div>
+        </div>
+      </div>
+
+      <!-- 換彈按鈕 (左下,搖桿右側) -->
+      <button id="mobile-reload" class="mobile-btn mobile-reload">R<br><span>換彈</span></button>
+
+      <!-- 武器切換按鈕 (TDM 模式,1=Nova 2=AK-47) -->
+      <button id="mobile-w1" class="mobile-btn mobile-weapon mobile-w1" style="display:none">1<br><span>Nova</span></button>
+      <button id="mobile-w2" class="mobile-btn mobile-weapon mobile-w2" style="display:none">2<br><span>AK-47</span></button>
+
+      <!-- 開火按鈕 (右下大圓) -->
+      <button id="mobile-fire" class="mobile-btn mobile-fire">🔫<br><span>FIRE</span></button>
+
+      <!-- 跳 (jump,預留) -->
+      <button id="mobile-jump" class="mobile-btn mobile-jump">⤴</button>
+    </div>
+
+    <!-- 計分板 (上中) -->
+    <div id="scoreboard">
+      <div class="sb-team sb-t">
+        <div class="sb-label">T 隊</div>
+        <div class="sb-score" id="score-t">0</div>
+      </div>
+      <div class="sb-mid">
+        <div id="match-timer">00:00</div>
+        <div class="sb-vs">VS</div>
+      </div>
+      <div class="sb-team sb-ct">
+        <div class="sb-label">CT 隊</div>
+        <div class="sb-score" id="score-ct">0</div>
+      </div>
+    </div>
+
+    <!-- 血量 (左下) -->
+    <div id="hud-bottom-left">
+      <div id="health">100</div>
+      <div id="health-label">HP</div>
+    </div>
+
+    <!-- 彈藥 (右下) -->
+    <div id="hud-bottom-right">
+      <div id="ammo-current">8</div>
+      <div id="ammo-sep">/</div>
+      <div id="ammo-reserve">32</div>
+      <div id="weapon-name">Nova</div>
+    </div>
+
+    <!-- 隊伍 (右上) -->
+    <div id="my-team-display">
+      <span id="my-team-label">T</span>
+    </div>
+
+    <!-- 命中提示 -->
+    <div id="hitmarker"></div>
+
+    <!-- 擊殺 / 系統提示 -->
+    <div id="killfeed"></div>
+
+    <!-- 準心 -->
+    <div id="crosshair">
+      <span class="ch-tl"></span>
+      <span class="ch-tr"></span>
+      <span class="ch-bl"></span>
+      <span class="ch-br"></span>
+      <span class="ch-dot"></span>
+    </div>
+
+    <!-- 受傷紅邊 -->
+    <div id="damage-vignette"></div>
+
+    <!-- 聊天框 (左下,顯示 4 秒自動隱藏) -->
+    <div id="chat-box">
+      <div id="chat-list"></div>
+    </div>
+  </div>
+
+  <!-- ==================== 大廳 ==================== -->
+  <div id="lobby">
+    <!-- 連線中 -->
+    <div id="lobby-connecting" class="lobby-section">
+      <div class="lobby-card">
+        <h1>DUST II — 多人對戰</h1>
+        <div class="spinner"></div>
+        <p>正在連線到伺服器...</p>
+      </div>
+    </div>
+
+    <!-- 主選單 -->
+    <div id="lobby-main" class="lobby-section" style="display:none">
+      <div class="lobby-card">
+        <h1>DUST II</h1>
+        <p class="subtitle">Deathmatch · Multiplayer</p>
+        <div class="lobby-form">
+          <label>你的名字</label>
+          <input id="player-name" type="text" placeholder="Player" maxlength="20" autocomplete="off" />
+        </div>
+
+        <!-- PK 模式地圖選擇 (5 張循環 + 隨機) -->
+        <div class="lobby-form map-pick" id="map-pick">
+          <label>選擇 PK 地圖 <span style="color:#888;font-size:11px">— 預設 🎲 隨機,或點 5 張圖任一</span></label>
+          <div class="map-pick-grid">
+            <button class="map-pick-btn" data-mapidx="0" type="button" style="--swatch:#c89060">
+              <div class="mp-swatch"></div>
+              <div class="mp-name">Dusty Duel</div>
+              <div class="mp-sub">沙漠黃昏</div>
+            </button>
+            <button class="map-pick-btn" data-mapidx="1" type="button" style="--swatch:#b8d8e8">
+              <div class="mp-swatch"></div>
+              <div class="mp-name">Ice Cave</div>
+              <div class="mp-sub">冰封洞窟</div>
+            </button>
+            <button class="map-pick-btn" data-mapidx="2" type="button" style="--swatch:#5a5048">
+              <div class="mp-swatch"></div>
+              <div class="mp-name">Warehouse</div>
+              <div class="mp-sub">廢棄倉庫</div>
+            </button>
+            <button class="map-pick-btn" data-mapidx="3" type="button" style="--swatch:#a07840">
+              <div class="mp-swatch"></div>
+              <div class="mp-name">Aztec Ruins</div>
+              <div class="mp-sub">古神殿遺跡</div>
+            </button>
+            <button class="map-pick-btn" data-mapidx="4" type="button" style="--swatch:#3a3a40">
+              <div class="mp-swatch"></div>
+              <div class="mp-name">Vertigo</div>
+              <div class="mp-sub">摩天樓頂</div>
+            </button>
+            <button class="map-pick-btn map-pick-random selected" data-mapidx="-1" type="button">
+              <div class="mp-swatch" style="background:linear-gradient(135deg,#ff6b35,#2196f3)"></div>
+              <div class="mp-name">🎲 隨機</div>
+              <div class="mp-sub">5 張隨機選</div>
+            </button>
+          </div>
+        </div>
+
+        <div class="lobby-actions">
+          <div class="mode-row">
+            <button id="btn-create" class="btn-create">🏠 創建房間</button>
+            <button id="btn-quick" class="btn-quick">⚡ 快速對戰</button>
+          </div>
+          <div class="mode-row">
+            <button id="btn-create-pk" class="btn-create-pk">⚔️ PK 對決 (1v1 手槍)</button>
+          </div>
+        </div>
+
+        <!-- Auto-aim 開關 (PK/TDM 都適用) -->
+        <div class="lobby-form aim-toggle">
+          <label class="aim-toggle-label">
+            <input id="aim-toggle" type="checkbox" />
+            <span class="aim-toggle-text">🎯 準心自動瞄準 (輔助鎖敵)</span>
+          </label>
+          <div class="aim-toggle-hint">勾選後,準心會自動對準視野內最近的敵人</div>
+        </div>
+        <div class="lobby-divider"><span>或</span></div>
+        <div class="lobby-form lobby-join">
+          <label>房間代碼</label>
+          <div class="join-row">
+            <input id="room-code-input" type="text" placeholder="ABC123" maxlength="6" autocomplete="off" />
+            <button id="btn-join" class="btn-secondary">加入</button>
+          </div>
+        </div>
+        <div id="lobby-error"></div>
+        <p class="tip">v0.2.0 · Deathmatch 模式 · 先達 10 殺獲勝</p>
+      </div>
+    </div>
+
+    <!-- 房間等待中 -->
+    <div id="lobby-waiting" class="lobby-section" style="display:none">
+      <div class="lobby-card">
+        <h1>房間已建立</h1>
+        <div class="room-code-display">
+          <div class="rc-label">房間代碼</div>
+          <div class="rc-code" id="my-room-code">ABC123</div>
+          <button id="copy-code" class="btn-copy">📋 複製</button>
+        </div>
+        <p class="waiting-msg">已等待 <span id="wait-timer">0</span> 秒 · 等待其他玩家...</p>
+        <div class="player-list-box">
+          <div class="pl-header">玩家 (<span id="player-count">0</span>)</div>
+          <div id="player-list"></div>
+        </div>
+        <p class="tip">把代碼給朋友,他們輸入後即可加入<br>10 秒後若無對手會自動加入 AI</p>
+        <button id="btn-leave" class="btn-secondary">離開房間</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 手機遊戲控制 ==================== -->
+  <div id="mobile-controls" aria-label="手機遊戲控制">
+    <div id="mobile-look-zone" aria-label="拖曳瞄準"></div>
+    <div id="mobile-stick" aria-label="移動搖桿">
+      <div id="mobile-stick-knob"></div>
+    </div>
+    <button id="mobile-fire" type="button" aria-label="開火">🔥</button>
+    <button id="mobile-reload" type="button" aria-label="換彈">R</button>
+  </div>
+
+  <!-- ==================== 開始畫面 (PointerLock) ==================== -->
+  <div id="start-screen" style="display:none">
+    <div class="start-card">
+      <h1 id="start-title">MATCH START</h1>
+      <p class="subtitle" id="start-objective">目標:殲滅敵方,先達 10 殺</p>
+      <ul class="controls">
+        <li><b>WASD</b> 移動</li>
+        <li><b>滑鼠</b> 視角</li>
+        <li><b>左鍵</b> 開火</li>
+        <li><b>R</b> 換彈</li>
+        <li><b>1 / 2</b> Nova / AK-47</li>
+        <li><b>Shift</b> 奔跑</li>
+        <li><b>Esc</b> 暫停</li>
+      </ul>
+      <p class="info">場上: <span id="bot-count">0</span> 名敵方</p>
+      <button id="start-btn">點擊開始</button>
+      <p class="tip">點擊後瀏覽器會鎖定滑鼠</p>
+    </div>
+  </div>
+
+  <!-- ==================== 結束 / 暫停畫面 ==================== -->
+  <div id="overlay" class="hidden">
+    <div class="overlay-card">
+      <h2 id="overlay-title">PAUSED</h2>
+      <p id="overlay-msg">按 Esc 繼續</p>
+      <button id="resume-btn">繼續</button>
+    </div>
+  </div>
+
+  <script type="module" src="game.js"></script>
+</body>
+</html>
